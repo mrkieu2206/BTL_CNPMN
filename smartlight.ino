@@ -2,7 +2,7 @@
 #include <ESP8266_Lib.h>
 #include <BlynkSimpleShieldEsp8266.h>
 
-//Auth Token in the Blynk App.
+// You should get Auth Token in the Blynk App.
 char auth[] = "hKQnz7Ow84LaxXO2fx8RzabQp687rbVa";
 
 // Your WiFi credentials.
@@ -23,6 +23,10 @@ int modeButtonState = 0;
 int lastModeButtonState = 0;
 int ledButtonState = 0;
 int lastLedButtonState = 0;
+int brightness = 500; //Setup default brightness value
+int timer = 0;
+int timerMode = 0;
+
 
 WidgetLCD lcd(V10); //LCD in Blynk App
 WidgetLED pir1(V2); //HC-SR501 in Blynk App
@@ -40,6 +44,9 @@ void setup()
   Serial.begin(ESP8266_BAUD);
   delay(10);
   Blynk.begin(auth, wifi, ssid, pass);
+  Blynk.notify("System Ready!!!");
+  Blynk.virtualWrite(V6, brightness); //Setup default brightness value on slider
+  Blynk.virtualWrite(V8, 0);
   pinMode(ledAutoMode, OUTPUT);
   pinMode(led, OUTPUT);
   pinMode(pir, INPUT);
@@ -52,7 +59,7 @@ void setup()
 void autoMode() {
   int ldrValue = analogRead(ldr);
   int pirValue = digitalRead(pir);
-  if (ldrValue < 500 && pirValue == HIGH ) {
+  if (ldrValue < brightness && pirValue == HIGH ) {
     ledState = true;
   } else {
     ledState = false;
@@ -68,6 +75,7 @@ void buttonControl() {
   if (modeButtonState != lastModeButtonState) {
     if (modeButtonState == HIGH) {
       manualModeOn = !manualModeOn;
+      timerMode = 0;
     }
   }
   lastModeButtonState = modeButtonState;
@@ -78,6 +86,7 @@ void buttonControl() {
     if (ledButtonState == HIGH) {
       ledState = !ledState;
       manualModeOn = 1;
+      timerMode = 0;
     }
   }
   lastLedButtonState = ledButtonState;
@@ -98,6 +107,7 @@ void ledStateUpdate() {
 
 
 //Events in Blynk App
+//Turn ON/OFF LED
 BLYNK_WRITE(V1) {
   int pinData = param.asInt();
   if (pinData == 1) {
@@ -109,6 +119,7 @@ BLYNK_WRITE(V1) {
   }
 }
 
+//Turn ON/OFF ManualMode
 BLYNK_WRITE(V0) {
   int pinData = param.asInt();
   if (pinData == 1) {
@@ -117,6 +128,36 @@ BLYNK_WRITE(V0) {
     manualModeOn = 0;
   }
 }
+
+//Set brightness value
+BLYNK_WRITE(V6) {
+  int pinData = param.asInt();
+  brightness = pinData;
+}
+
+//Get Timer Value
+BLYNK_WRITE(V7) {
+  int pinData = param.asInt();
+  timer = pinData;
+  if (timerMode == 1) {
+    if (timer == 1) {
+      ledState = 1;
+    } else {
+      ledState = 0;
+    }
+  }
+}
+
+//Turn ON/OFF TimerMode
+BLYNK_WRITE(V8) {
+  int pinData = param.asInt();
+  timerMode = pinData;
+  if (pinData == 1) {
+    manualModeOn = 1;
+    Blynk.notify("Timer Mode is ON!!");
+  }
+}
+
 void setStateBlynkApp() {
   lcd.clear();
   if (manualModeOn == 1) {
@@ -138,9 +179,13 @@ void setStateBlynkApp() {
   } else {
     pir1.off();
   }
+  if (timerMode == 0) {
+    Blynk.virtualWrite(V8, LOW);
+  } else {
+    Blynk.virtualWrite(V8, HIGH);
+  }
   Blynk.virtualWrite(V5, analogRead(A5));
 }
-
 
 void loop()
 {
